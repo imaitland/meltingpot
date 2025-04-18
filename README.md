@@ -73,23 +73,22 @@ installation as follows:
     cd meltingpot
     ```
 
-2.  (Optional) Activate a virtual environment, e.g.:
+2. Install Melting Pot:
 
     ```shell
-    python -m venv venv
-    source venv/bin/activate
+   uv install -e ".[dev]"
     ```
-
-3.  Install Melting Pot:
-
-    ```shell
-    pip install --editable .[dev]
-    ```
+   This runs the script in setup.py and installs dependencies defined in pyproject.toml.
 
 4.  (Optional) Test the installation:
 
     ```shell
-    pytest --pyargs meltingpot
+    uv run pytest --pyargs meltingpot
+    ```
+    
+5. (Optional) add a dependency:
+    ```shell
+   uv add <some_dep>
     ```
 
 ### Devcontainer (x86 only)
