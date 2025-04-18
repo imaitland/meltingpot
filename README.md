@@ -90,6 +90,10 @@ installation as follows:
     ```shell
    uv add <some_dep>
     ```
+   
+### running examples
+
+` uv run -m examples.rllib.self_play_train.py`
 
 ### Devcontainer (x86 only)
 
