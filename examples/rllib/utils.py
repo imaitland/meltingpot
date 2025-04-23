@@ -22,16 +22,17 @@ from meltingpot import substrate
 from meltingpot.utils.policies import policy
 from ml_collections import config_dict
 import numpy as np
-from ray.rllib import algorithms
+from ray.rllib import algorithms, MultiAgentEnv
 from ray.rllib.env import multi_agent_env
 from ray.rllib.policy import sample_batch
+from gymnasium import spaces
 
 from ..gym import utils
 
 PLAYER_STR_FORMAT = 'player_{index}'
 
 
-class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
+class MeltingPotEnv(MultiAgentEnv):
   """An adapter between the Melting Pot substrates and RLLib MultiAgentEnv."""
 
   def __init__(self, env: dmlab2d.Environment):
@@ -42,20 +43,46 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     """
     self._env = env
     self._num_players = len(self._env.observation_spec())
+
+    # ["player_0", "player_1"...]
+    # function mapping to policy - RLModule.policy_mapping_function must match this.
     self._ordered_agent_ids = [
         PLAYER_STR_FORMAT.format(index=index)
         for index in range(self._num_players)
     ]
-    # RLLib requires environments to have the following member variables:
-    # observation_space, action_space, and _agent_ids
     self._agent_ids = set(self._ordered_agent_ids)
-    # RLLib expects a dictionary of agent_id to observation or action,
-    # Melting Pot uses a tuple, so we convert
-    self.observation_space = self._convert_spaces_tuple_to_dict(
+
+    # updated API
+    # currently active in the env List(agentIds)
+    self.agents = self._ordered_agent_ids
+    # all possible agents List(agentIds)
+    self.possible_agents = self._ordered_agent_ids
+
+    # Note: MARL ENV: https://github.com/ray-project/ray/blob/master/rllib/examples/multi_agent/different_spaces_for_agents.py
+    # Note: another MARL env, this time using a wrapper util fn: https://github.com/ray-project/ray/blob/master/rllib/env/multi_agent_env.py#L331
+    # Note: this is deprecated   # @OldAPIStack, use `observation_spaces` and `action_spaces`, instead.
+
+    # convert meltingpot tuple to a dict key'd by agent id.
+
+    # this is a tuple. e.g.
+    # Tuple(Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'INTERACTION_INVENTORIES': Box(-inf, inf, (2, 2), float64), 'INVENTORY': Box(-inf, inf, (2,), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (40, 40, 3), uint8), 'WORLD.RGB': Box(0, 255, (120, 184, 3), uint8)), Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'INTERACTION_INVENTORIES': Box(-inf, inf, (2, 2), float64), 'INVENTORY': Box(-inf, inf, (2,), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (40, 40, 3), uint8), 'WORLD.RGB': Box(0, 255, (120, 184, 3), uint8)))
+    substrate_observation_space = utils.spec_to_space(self._env.observation_spec())
+    substrate_action_space = utils.spec_to_space(self._env.action_spec())
+
+
+
+    # take this tuple and make a dict
+    self.observation_spaces = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.observation_spec()),
         remove_world_observations=True)
-    self.action_space = self._convert_spaces_tuple_to_dict(
+
+    self.action_spaces = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.action_spec()))
+
+    # backward compat with MeltingPot
+    self.action_space = self.action_spaces
+    self.observation_space = self.observation_spaces
+
     super().__init__()
 
   def reset(self, *args, **kwargs):
@@ -110,12 +137,13 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
       self,
       input_tuple: spaces.Tuple,
       remove_world_observations: bool = False) -> spaces.Dict:
-    """Returns spaces tuple converted to a dictionary.
+    """Returns gymnasium spaces tuple converted to a dictionary.
 
     Args:
       input_tuple: tuple to convert.
       remove_world_observations: If True will remove non-player observations.
     """
+
     return spaces.Dict({
         agent_id: (utils.remove_world_observations_from_space(input_tuple[i])
                    if remove_world_observations else input_tuple[i])
@@ -176,3 +204,30 @@ class RayModelPolicy(policy.Policy[policy.State]):
 
   def close(self) -> None:
     """See base class."""
+
+
+
+def convert_tuple_to_dict(input_tuple: spaces.Tuple, agent_ids: list, remove_world_observations: bool = False) -> dict:
+    """Converts a spaces.Tuple to a Dict[AgentID, gym.Space].
+
+    Args:
+        input_tuple: The spaces.Tuple to convert.
+        agent_ids: List of agent IDs corresponding to the tuple elements.
+        remove_world_observations: Whether to remove keys with `_WORLD_PREFIX`.
+
+    Returns:
+        A dictionary mapping AgentID to gym.Space.
+    """
+    def remove_world_observations_from_space(observation: spaces.Dict) -> spaces.Dict:
+        """Removes keys with `_WORLD_PREFIX` from a spaces.Dict."""
+        _WORLD_PREFIX = 'WORLD.'
+        return spaces.Dict({
+            key: observation[key] for key in observation if _WORLD_PREFIX not in key
+        })
+
+    return {
+        agent_id: (remove_world_observations_from_space(input_tuple[i])
+                   if remove_world_observations else input_tuple[i])
+        for i, agent_id in enumerate(agent_ids)
+    }
+

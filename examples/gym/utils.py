@@ -37,6 +37,18 @@ def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:
 
 def remove_world_observations_from_space(
     observation: spaces.Dict) -> spaces.Dict:
+  """Removes keys with the `_WORLD_PREFIX` from a Gymnasium `spaces.Dict`.
+
+  This function filters out any keys in the provided `spaces.Dict` that start
+  with the `_WORLD_PREFIX` (e.g., 'WORLD.RGB'). It is useful for excluding global
+  or environment-level observations that are not specific to individual agents.
+
+  Args:
+    observation: A `spaces.Dict` object containing observation spaces.
+
+  Returns:
+    A new `spaces.Dict` object with keys starting with `_WORLD_PREFIX` removed.
+  """
   return spaces.Dict({
       key: observation[key] for key in observation if _WORLD_PREFIX not in key
   })
