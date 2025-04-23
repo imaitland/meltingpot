@@ -41,48 +41,24 @@ class MeltingPotEnv(MultiAgentEnv):
     Args:
       env: dmlab2d environment to wrap. Will be closed when this wrapper closes.
     """
+    # Protected attributes
     self._env = env
     self._num_players = len(self._env.observation_spec())
-
-    # ["player_0", "player_1"...]
-    # function mapping to policy - RLModule.policy_mapping_function must match this.
     self._ordered_agent_ids = [
         PLAYER_STR_FORMAT.format(index=index)
         for index in range(self._num_players)
     ]
     self._agent_ids = set(self._ordered_agent_ids)
 
-    # updated API
-    # currently active in the env List(agentIds)
+
     self.agents = self._ordered_agent_ids
     # all possible agents List(agentIds)
     self.possible_agents = self._ordered_agent_ids
-
-    # Note: MARL ENV: https://github.com/ray-project/ray/blob/master/rllib/examples/multi_agent/different_spaces_for_agents.py
-    # Note: another MARL env, this time using a wrapper util fn: https://github.com/ray-project/ray/blob/master/rllib/env/multi_agent_env.py#L331
-    # Note: this is deprecated   # @OldAPIStack, use `observation_spaces` and `action_spaces`, instead.
-
-    # convert meltingpot tuple to a dict key'd by agent id.
-
-    # this is a tuple. e.g.
-    # Tuple(Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'INTERACTION_INVENTORIES': Box(-inf, inf, (2, 2), float64), 'INVENTORY': Box(-inf, inf, (2,), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (40, 40, 3), uint8), 'WORLD.RGB': Box(0, 255, (120, 184, 3), uint8)), Dict('COLLECTIVE_REWARD': Box(-inf, inf, (), float64), 'INTERACTION_INVENTORIES': Box(-inf, inf, (2, 2), float64), 'INVENTORY': Box(-inf, inf, (2,), float64), 'READY_TO_SHOOT': Box(-inf, inf, (), float64), 'RGB': Box(0, 255, (40, 40, 3), uint8), 'WORLD.RGB': Box(0, 255, (120, 184, 3), uint8)))
-    substrate_observation_space = utils.spec_to_space(self._env.observation_spec())
-    substrate_action_space = utils.spec_to_space(self._env.action_spec())
-
-
-
-    # take this tuple and make a dict
     self.observation_spaces = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.observation_spec()),
         remove_world_observations=True)
-
     self.action_spaces = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.action_spec()))
-
-    # backward compat with MeltingPot
-    self.action_space = self.action_spaces
-    self.observation_space = self.observation_spaces
-
     super().__init__()
 
   def reset(self, *args, **kwargs):

@@ -54,7 +54,7 @@ config.env="meltingpot"
 # Warning: here we assume players have the same space... iterate over players if that's not true.
 # If iterating you will need to define a multiagentspec on the config, one policy per player, rather than default config.rl_module
 test_env = utils.env_creator(config.env_config)
-rgb_shape = test_env.observation_space[f"player_{0}"]["RGB"].shape
+rgb_shape = test_env.observation_spaces[f"player_{0}"]["RGB"].shape
 sprite_x = rgb_shape[0] // 8
 sprite_y = rgb_shape[1] // 8
 
