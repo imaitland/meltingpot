@@ -26,18 +26,14 @@ VF_SHARE_LAYERS = True
 # bootstrap
 ray.init(runtime_env={"env_vars": {"RAY_DEBUG": "legacy"}})
 
-# TODO: this needs a wrapper...
 def _env_creator(cfg):
-    # e.g. wrap_deepmind() or
-    # wrap_atari_for_new_api_stack()
+    # Util function in case
     return utils.env_creator(cfg)
 
 # register the env before init the config
 register_env("meltingpot", _env_creator)
 
-# Break out policy mapping function for debugging
 def policy_mapping_fn(agent_id, *args, **kwargs):
-    # You can add your breakpoint here
     index = int(agent_id.split("_")[-1])
     return PLAYER_STR_FORMAT.format(index=index)
 
@@ -55,12 +51,12 @@ config.env_config= {"substrate": SUBSTRATE_NAME, "roles": player_roles}
 # use env registered earlier with associated _env_creator
 config.env="meltingpot"
 
-# 4. Extract space dimensions
+# Warning: here we assume players have the same space... iterate over players if that's not true.
+# If iterating you will need to define a multiagentspec on the config, one policy per player, rather than default config.rl_module
 test_env = utils.env_creator(config.env_config)
 rgb_shape = test_env.observation_space[f"player_{0}"]["RGB"].shape
 sprite_x = rgb_shape[0] // 8
 sprite_y = rgb_shape[1] // 8
-
 
 # default agent config, the respective agents' observation and action spaces are defined in the env...
 config.rl_module(
@@ -69,8 +65,8 @@ config.rl_module(
         fcnet_activation=FCNET_ACTIVATIONS,
         vf_share_layers=VF_SHARE_LAYERS,
         conv_filters=[
-            (16, (8, 8), 8),  # First layer aligns with 8×8 sprites
-            (128, (sprite_x, sprite_y), 1),  # Second layer processes the downsampled observation
+            (16, (8, 8), 8),  # First layer aligns with 8×8 sprites of the MeltingPot playspace.
+            (128, (sprite_x, sprite_y), 1),  # Second layer processes the downsampled observation, using the player sprite.
         ],
         conv_activation=CONV_ACTIVATION,
     )
