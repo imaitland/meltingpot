@@ -41,7 +41,6 @@ class MeltingPotEnv(MultiAgentEnv):
     Args:
       env: dmlab2d environment to wrap. Will be closed when this wrapper closes.
     """
-    # Protected attributes
     self._env = env
     self._num_players = len(self._env.observation_spec())
     self._ordered_agent_ids = [
@@ -52,7 +51,6 @@ class MeltingPotEnv(MultiAgentEnv):
 
 
     self.agents = self._ordered_agent_ids
-    # all possible agents List(agentIds)
     self.possible_agents = self._ordered_agent_ids
     self.observation_spaces = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.observation_spec()),
@@ -180,30 +178,3 @@ class RayModelPolicy(policy.Policy[policy.State]):
 
   def close(self) -> None:
     """See base class."""
-
-
-
-def convert_tuple_to_dict(input_tuple: spaces.Tuple, agent_ids: list, remove_world_observations: bool = False) -> dict:
-    """Converts a spaces.Tuple to a Dict[AgentID, gym.Space].
-
-    Args:
-        input_tuple: The spaces.Tuple to convert.
-        agent_ids: List of agent IDs corresponding to the tuple elements.
-        remove_world_observations: Whether to remove keys with `_WORLD_PREFIX`.
-
-    Returns:
-        A dictionary mapping AgentID to gym.Space.
-    """
-    def remove_world_observations_from_space(observation: spaces.Dict) -> spaces.Dict:
-        """Removes keys with `_WORLD_PREFIX` from a spaces.Dict."""
-        _WORLD_PREFIX = 'WORLD.'
-        return spaces.Dict({
-            key: observation[key] for key in observation if _WORLD_PREFIX not in key
-        })
-
-    return {
-        agent_id: (remove_world_observations_from_space(input_tuple[i])
-                   if remove_world_observations else input_tuple[i])
-        for i, agent_id in enumerate(agent_ids)
-    }
-

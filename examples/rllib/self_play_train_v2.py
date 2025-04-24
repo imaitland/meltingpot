@@ -30,10 +30,6 @@ from ray import tune
 from . import utils
 from .utils import PLAYER_STR_FORMAT, MeltingPotEnv
 
-# params
-VF_SHARE_LAYERS = True
-NUM_ROLLOUT_WORKERS = 1
-ROLLOUT_FRAGMENT_LENGTH = 10
 
 
 def get_config(
@@ -41,7 +37,7 @@ def get_config(
         env_name: str = "meltingpot",
         substrate_name: str = "bach_or_stravinsky_in_the_matrix__repeated",
         num_rollout_workers: int = 1,
-        rollout_fragment_length: int = 100,
+        rollout_fragment_length: int = 10,
         train_batch_size: int = 6400,
         fcnet_hiddens=(64, 64),
         fcnet_activations="relu",
@@ -51,6 +47,8 @@ def get_config(
         sgd_minibatch_size: int = 128,
         sprite_x: int = 5,
         sprite_y: int = 5,
+        vf_share_layers: bool = True,
+        max_seq_len: int = 20, #https://docs.ray.io/en/latest/rllib/rl-modules.html#other-default-model-settings
 ):
     """Get the configuration for running an agent on a substrate using RLLib.
 
@@ -86,19 +84,24 @@ def get_config(
               # enable Rllib latest api features
               .api_stack(enable_env_runner_and_connector_v2=True, enable_rl_module_and_learner=True)
               # set to 0 to get IDE debugger to work.
-              .env_runners(num_env_runners=num_rollout_workers)
+              .env_runners(num_env_runners=num_rollout_workers, rollout_fragment_length=rollout_fragment_length)
               # Flatten the Melting Pot observation_spaces dict to a RGB vector, must be matched by RLLib default, or policy custom conv_filters attribute
               .env_runners(env_to_module_connector=lambda env: FlattenObservations(multi_agent=True))
               .rl_module(
                   model_config=DefaultModelConfig(
                       fcnet_hiddens=fcnet_hiddens,
                       fcnet_activation=fcnet_activations,
-                      vf_share_layers=VF_SHARE_LAYERS,
+                      vf_share_layers=vf_share_layers,
                       conv_filters=[
-                          (16, (8, 8), 8),  # First layer aligns with 8×8 sprites of the MeltingPot playspace.
+                          (16, (8, 8), 8),  # First layer aligns with 8×8 sprites of the flattened (see FlattenObservations above) MeltingPot environment.
                           (128, (sprite_x, sprite_y), 1),  # Second layer processes the downsampled observation, using the player sprite.
                       ],
                       conv_activation=conv_activation,
+                      # lstm: https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/ppo/stateless_cartpole_ppo.py
+                      use_lstm=True,
+                      lstm_cell_size=lstm_cell_size,
+                      # not sure about this
+                      max_seq_len=max_seq_len,
                   )
               )
               .multi_agent(
@@ -114,6 +117,8 @@ def get_config(
                   },
                   policy_mapping_fn=policy_mapping_fn,  # Using the separated function here
               ))
+    config.train_batch_size = train_batch_size
+    config.sgd_minibatch_size = sgd_minibatch_size
     return config
 
 # Ray env register requires a callable param.
@@ -143,6 +148,7 @@ def main():
   register_env(env_name, curried_env_creator(substrate_name,player_roles))
 
   ray.init()
+
   stop = {
       "training_iteration": 1,
   }
@@ -154,7 +160,6 @@ def main():
 
   print(results)
   assert results.num_errors == 0
-
 
 if __name__ == "__main__":
   main()

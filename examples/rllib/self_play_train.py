@@ -19,7 +19,7 @@ from meltingpot import substrate
 import ray
 from ray import air
 from ray import tune
-from ray.rllib.algorithms import ppo, AlgorithmConfig, PPOConfig
+from ray.rllib.algorithms import ppo
 from ray.rllib.policy import policy
 
 from . import utils
@@ -27,11 +27,11 @@ from . import utils
 
 def get_config(
     substrate_name: str = "bach_or_stravinsky_in_the_matrix__repeated",
-    num_rollout_workers: int = 1,
+    num_rollout_workers: int = 2,
     rollout_fragment_length: int = 100,
     train_batch_size: int = 6400,
     fcnet_hiddens=(64, 64),
-    post_fcnet_hiddens=(384,),
+    post_fcnet_hiddens=(256,),
     lstm_cell_size: int = 256,
     sgd_minibatch_size: int = 128,
 ):
@@ -54,15 +54,9 @@ def get_config(
     The configuration for running the experiment.
   """
   # Gets the default training configuration
-  config = (
-    PPOConfig()
-      .api_stack(
-          enable_rl_module_and_learner = False,
-          enable_env_runner_and_connector_v2 = False,
-      )
-  )
+  config = ppo.PPOConfig()
   # Number of arenas.
-  config.num_env_runners = num_rollout_workers
+  config.num_rollout_workers = num_rollout_workers
   # This is to match our unroll lengths.
   config.rollout_fragment_length = rollout_fragment_length
   # Total (time x batch) timesteps on the learning update.
@@ -71,7 +65,8 @@ def get_config(
   config.sgd_minibatch_size = sgd_minibatch_size
   # Use the raw observations/actions as defined by the environment.
   config.preprocessor_pref = None
-  config = config.framework("torch")
+  # Use TensorFlow as the tensor framework.
+  config = config.framework("tf")
   # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
   config.num_gpus = int(os.environ.get("RLLIB_NUM_GPUS", "0"))
   config.log_level = "DEBUG"
@@ -106,7 +101,8 @@ def get_config(
         })
     player_to_agent[f"player_{i}"] = f"agent_{i}"
 
-  def policy_mapping_fn(agent_id, episode, worker, **kwargs):
+  def policy_mapping_fn(agent_id, **kwargs):
+    del kwargs
     return player_to_agent[agent_id]
 
   # 5. Configuration for multi-agent setup with one policy per role:
@@ -128,7 +124,7 @@ def get_config(
   config.model["conv_activation"] = "relu"
   config.model["post_fcnet_hiddens"] = post_fcnet_hiddens
   config.model["post_fcnet_activation"] = "relu"
-  config.model["use_lstm"] = False
+  config.model["use_lstm"] = True
   config.model["lstm_use_prev_action"] = True
   config.model["lstm_use_prev_reward"] = False
   config.model["lstm_cell_size"] = lstm_cell_size
