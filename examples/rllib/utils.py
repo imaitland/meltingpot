@@ -22,16 +22,17 @@ from meltingpot import substrate
 from meltingpot.utils.policies import policy
 from ml_collections import config_dict
 import numpy as np
-from ray.rllib import algorithms
+from ray.rllib import algorithms, MultiAgentEnv
 from ray.rllib.env import multi_agent_env
 from ray.rllib.policy import sample_batch
+from gymnasium import spaces
 
 from ..gym import utils
 
 PLAYER_STR_FORMAT = 'player_{index}'
 
 
-class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
+class MeltingPotEnv(MultiAgentEnv):
   """An adapter between the Melting Pot substrates and RLLib MultiAgentEnv."""
 
   def __init__(self, env: dmlab2d.Environment):
@@ -46,15 +47,15 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
         PLAYER_STR_FORMAT.format(index=index)
         for index in range(self._num_players)
     ]
-    # RLLib requires environments to have the following member variables:
-    # observation_space, action_space, and _agent_ids
     self._agent_ids = set(self._ordered_agent_ids)
-    # RLLib expects a dictionary of agent_id to observation or action,
-    # Melting Pot uses a tuple, so we convert
-    self.observation_space = self._convert_spaces_tuple_to_dict(
+
+
+    self.agents = self._ordered_agent_ids
+    self.possible_agents = self._ordered_agent_ids
+    self.observation_spaces = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.observation_spec()),
         remove_world_observations=True)
-    self.action_space = self._convert_spaces_tuple_to_dict(
+    self.action_spaces = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.action_spec()))
     super().__init__()
 
@@ -110,12 +111,13 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
       self,
       input_tuple: spaces.Tuple,
       remove_world_observations: bool = False) -> spaces.Dict:
-    """Returns spaces tuple converted to a dictionary.
+    """Returns gymnasium spaces tuple converted to a dictionary.
 
     Args:
       input_tuple: tuple to convert.
       remove_world_observations: If True will remove non-player observations.
     """
+
     return spaces.Dict({
         agent_id: (utils.remove_world_observations_from_space(input_tuple[i])
                    if remove_world_observations else input_tuple[i])

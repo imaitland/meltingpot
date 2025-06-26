@@ -137,34 +137,6 @@ setuptools.setup(
         ],
     },
     python_requires='>=3.11',
-    install_requires=[
-        'absl-py',
-        'chex',
-        'dm-env',
-        'dmlab2d',
-        'dm-tree',
-        'immutabledict',
-        'ml-collections',
-        'networkx',
-        'numpy',
-        'opencv-python',
-        'pandas',
-        'pygame',
-        'reactivex',
-        'tensorflow',
-    ],
-    extras_require={
-        # Used in development.
-        'dev': [
-            'build',
-            'isort',
-            'pipreqs',
-            'pip-tools',
-            'pyink',
-            'pylint',
-            'pytest-xdist',
-            'pytype',
-            'twine',
-        ],
-    },
+    install_requires=[],  # Using pyproject.toml for dependencies instead
+    extras_require={},  # Using pyproject.toml for development dependencies
 )
